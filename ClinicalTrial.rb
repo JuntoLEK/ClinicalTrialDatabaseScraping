@@ -53,7 +53,6 @@ class ClinicalTrial
 		@status = status if !status.nil? 
 		@link_for_detail = @@BASE_URL + link_for_detail[1, link_for_detail.length] if !link_for_detail.nil? 
 		@registered_date = id[-10,10] if !id.nil? 
-		# p @registered_date 
 	end
 
 	def process_for_csv (str)

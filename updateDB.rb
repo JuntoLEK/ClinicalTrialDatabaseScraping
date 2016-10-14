@@ -6,21 +6,19 @@ require './ClinicalTrial.rb'
 require 'csv'
 
 CSV_INPUT = "doctors_full.csv"
-# CSV_INPUT = "doctors_test.csv"
 OUTPUT_FILE = "new_doctors_full.csv"
-# OUTPUT_FILE = "new_doctors_test2.csv"
 BASE_URL = "https://upload.umin.ac.jp/cgi-open-bin/ctr"
 NUMBER_OF_ROWS_FOR_PAGE = 101
 
+urls = []
+clinical_trials = []
+clinical_trials_to_be_added = []
 
 
 #Read CSV data and create the list of clinical trials
-clinical_trials = []
-# csv_data = CSV.read(CSV_INPUT, headers: true)
 puts "start..."
 open(CSV_INPUT, "rb:Windows-31J:UTF-8", :invalid=>:replace, undef: :replace) do |f|
 	CSV.read(f, headers: true, encoding: "Windows-31J:UTF-8").each do |data|
-		# p data
 		clinical_trial = ClinicalTrial.new(data["id"], data["brief_title_JP"], data["condition_JP"], data["sponser_institute"], data["status"], data["link_for_detail"])
 		clinical_trial.official_title_JP = data["official_title_JP"]
 		clinical_trial.official_title_EN = data["official_title_EN"]
@@ -43,10 +41,9 @@ open(CSV_INPUT, "rb:Windows-31J:UTF-8", :invalid=>:replace, undef: :replace) do 
 		clinical_trial.address_public_contact_person = data["address_public_contact_person"]
 		clinical_trial.tel_public_contact_person = data["tel_public_contact_person"]
 		clinical_trial.email_public_contact_person = data["email_public_contact_person"]
-		# clinical_trial.registered_date = data["registered_date"]
+		clinical_trial.registered_date = data["registered_date"]
 
 		clinical_trials.push(clinical_trial)
-		# p clinical_trial.to_csv
 	end
 end
 
@@ -57,27 +54,22 @@ total_num_text = texts_containing_total_num.scan(/検索件数.+\d{5,10}/)
 length = total_num_text[0].length
 TOTAL_NUMBER = total_num_text[0][5, length-5].to_i
 p TOTAL_NUMBER
-
 TOTAL_PAGES = TOTAL_NUMBER/100 + 1
-
 p TOTAL_PAGES
 
-#get ID from WEB and compare with clinical_trial.id
+
 # put urls for the first loop
-urls = []
 for i in 1..TOTAL_PAGES
-# for i in 1..1
 	urls.push("https://upload.umin.ac.jp/cgi-open-bin/ctr/index.cgi?sort=03&isicdr=1&page=#{i}")
 end
 
-clinical_trials_to_be_added = []
+
+#first loop - get ID from WEB and compare with clinical_trial.id
 Anemone.crawl(urls, :depth_limit => 0) do |anemone|
 	anemone.on_every_page do |page|
 		puts page.url
 		doc = Nokogiri::HTML.parse(page.body.toutf8)
 		for i in 2..NUMBER_OF_ROWS_FOR_PAGE
-		# for i in 2..5
-			# p i.to_s + "rows"
 			id = doc.xpath("/html/body/div[1]/table[3]/tr[#{i}]/td[2]").text
 
 			#if there are no more rows any more, break
@@ -93,7 +85,7 @@ Anemone.crawl(urls, :depth_limit => 0) do |anemone|
 					newItem = false
 				end
 			}
-
+			#if new item, will add this new clinical trial item
 			if (newItem)
 				brief_title_JP = doc.xpath("/html/body/div[1]/table[3]/tr[#{i}]/td[3]").text
 				condition_JP = doc.xpath("/html/body/div[1]/table[3]/tr[#{i}]/td[4]").text
@@ -112,7 +104,7 @@ puts clinical_trials.size
 puts "to be added"
 puts clinical_trials_to_be_added.size
 
-#functin for second loop
+#Util method for second loop
 def trim_tel (num)
 	num = num.gsub("\+","")
 	num
@@ -146,12 +138,6 @@ for clinical_trial in clinical_trials_to_be_added
 	clinical_trial.email_public_contact_person = doc.xpath("/html/body/div[1]/table[10]/tr[8]/td[2]").text
 end
 
-# puts "alrady on the csv"
-# p clinical_trials
-
-# puts "to be added"
-# p clinical_trials_to_be_added
-
 #combine the original list with the list of items which will be added
 clinical_trials_to_be_added.concat(clinical_trials)
 
@@ -161,10 +147,7 @@ clinical_trials_to_be_added.unshift(ClinicalTrial.new_heading)
 # -- File I/O
 file_strings = ""
 for clinical_trial in clinical_trials_to_be_added
-	p clinical_trial.id
-	p clinical_trial.to_csv.encoding
 	file_strings += clinical_trial.to_csv
 end
-
 File.open(OUTPUT_FILE, 'w:Windows-31J', :invalid=>:replace, :undef=>:replace){|file|
 file.write(file_strings)}
